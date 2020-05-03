@@ -585,6 +585,13 @@ extern LZMA_API(lzma_ret) lzma_alone_decoder(
 		lzma_stream *strm, uint64_t memlimit)
 		lzma_nothrow lzma_attr_warn_unused_result;
 
+extern LZMA_API(lzma_ret) lzma_alone_decoder_dump(lzma_stream *strm,
+                                                  void **buf_pp,
+                                                  size_t *size_p);
+
+extern LZMA_API(lzma_ret) lzma_alone_decoder_restore(lzma_stream *strm,
+                                                     void *buf_p,
+                                                     size_t size);
 
 /**
  * \brief       Single-call .xz Stream decoder

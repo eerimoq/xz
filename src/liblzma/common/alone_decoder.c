@@ -10,6 +10,7 @@
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+#include <dbg.h>
 #include "alone_decoder.h"
 #include "lzma_decoder.h"
 #include "lz_decoder.h"
@@ -195,6 +196,48 @@ alone_decoder_memconfig(void *coder_ptr, uint64_t *memusage,
 	return LZMA_OK;
 }
 
+static lzma_ret
+alone_decoder_dump(void *coder_ptr, void **buf_pp, size_t *size_p,
+		   const lzma_allocator *allocator)
+{
+    lzma_alone_coder *coder = coder_ptr;
+    void *buf_p;
+
+    buf_p = lzma_alloc(*size_p + sizeof(*coder), allocator);
+
+    if (buf_p == NULL) {
+	return (LZMA_MEM_ERROR);
+    }
+
+    memcpy(buf_p, *buf_pp, *size_p);
+    lzma_free(*buf_pp, allocator);
+    memcpy(&((char *)buf_p)[*size_p], coder, sizeof(*coder));
+    *buf_pp = buf_p;
+    *size_p += sizeof(*coder);
+
+    dbg(*size_p);
+
+    if (coder->sequence == SEQ_CODE) {
+	return coder->next.dump(coder->next.coder, buf_pp, size_p, allocator);
+    } else {
+	return LZMA_OK;
+    }
+}
+
+static lzma_ret
+alone_decoder_restore(void *coder_ptr, void *buf_p, size_t size,
+		      const lzma_allocator *allocator)
+{
+    (void)coder_ptr;
+    (void)buf_p;
+    (void)size;
+    (void)allocator;
+
+    dbg(size);
+
+    return (LZMA_OK);
+}
+
 
 extern lzma_ret
 lzma_alone_decoder_init(lzma_next_coder *next, const lzma_allocator *allocator,
@@ -213,6 +256,8 @@ lzma_alone_decoder_init(lzma_next_coder *next, const lzma_allocator *allocator,
 		next->code = &alone_decode;
 		next->end = &alone_decoder_end;
 		next->memconfig = &alone_decoder_memconfig;
+		next->dump = &alone_decoder_dump;
+		next->restore = &alone_decoder_restore;
 		coder->next = LZMA_NEXT_CODER_INIT;
 	}
 
@@ -239,4 +284,54 @@ lzma_alone_decoder(lzma_stream *strm, uint64_t memlimit)
 	strm->internal->supported_actions[LZMA_FINISH] = true;
 
 	return LZMA_OK;
+}
+
+extern LZMA_API(lzma_ret) lzma_alone_decoder_dump(lzma_stream *strm,
+						  void **buf_pp,
+						  size_t *size_p)
+{
+    lzma_ret ret;
+
+    *buf_pp = lzma_alloc(sizeof(*strm), strm->allocator);
+
+    if (*buf_pp == NULL)
+	return (LZMA_MEM_ERROR);
+
+    memcpy(*buf_pp, strm, sizeof(*strm));
+    *size_p = sizeof(*strm);
+
+    dbg(*size_p);
+
+    ret = strm->internal->next.dump(strm->internal->next.coder,
+				    buf_pp,
+				    size_p,
+				    strm->allocator);
+
+    if (ret != LZMA_OK) {
+	lzma_free(*buf_pp, strm->allocator);
+    }
+
+    return (LZMA_OK);
+}
+
+extern LZMA_API(lzma_ret) lzma_alone_decoder_restore(lzma_stream *strm,
+						     void *buf_p,
+						     size_t size)
+{
+    lzma_stream *dumped_p;
+
+    dbg(size);
+
+    if (size < sizeof(*dumped_p)) {
+	return (LZMA_MEM_ERROR);
+    }
+
+    dumped_p = (lzma_stream *)buf_p;
+    strm->avail_in = dumped_p->avail_in;
+    strm->total_in = dumped_p->total_in;
+    strm->avail_out = dumped_p->avail_out;
+    strm->total_out = dumped_p->total_out;
+    strm->seek_pos = dumped_p->seek_pos;
+
+    return (LZMA_OK);
 }

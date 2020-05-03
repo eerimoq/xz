@@ -112,6 +112,16 @@ typedef lzma_ret (*lzma_code_function)(
 typedef void (*lzma_end_function)(
 		void *coder, const lzma_allocator *allocator);
 
+/// Type of a function to free the memory allocated for the coder
+typedef lzma_ret (*lzma_dump_function)(
+                void *coder, void **buf_pp, size_t *size_p,
+                const lzma_allocator *allocator);
+
+/// Type of a function to free the memory allocated for the coder
+typedef lzma_ret (*lzma_restore_function)(
+                void *coder, void *buf_p, size_t size,
+                const lzma_allocator *allocator);
+
 
 /// Raw coder validates and converts an array of lzma_filter structures to
 /// an array of lzma_filter_info structures. This array is used with
@@ -152,6 +162,12 @@ struct lzma_next_coder_s {
 	/// be NULL; in that case, lzma_free is called to free
 	/// lzma_next_coder.coder.
 	lzma_end_function end;
+
+        /// Pointer to the dump function.
+        lzma_dump_function dump;
+
+        /// Pointer to the restore function.
+        lzma_restore_function restore;
 
 	/// Pointer to a function to get progress information. If this is NULL,
 	/// lzma_stream.total_in and .total_out are used instead.

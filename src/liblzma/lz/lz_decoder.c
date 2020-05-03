@@ -16,7 +16,7 @@
 // and passing the data between filters in the chain. The filter-specific
 // part decodes from the input buffer to the dictionary.
 
-
+#include <dbg.h>
 #include "lz_decoder.h"
 
 
@@ -189,6 +189,44 @@ lz_decode(void *coder_ptr, const lzma_allocator *allocator,
 	return LZMA_OK;
 }
 
+static lzma_ret
+lz_decoder_dump(void *coder_ptr, void **buf_pp, size_t *size_p,
+		const lzma_allocator *allocator)
+{
+    lzma_coder *coder = coder_ptr;
+    void *buf_p;
+
+    buf_p = lzma_alloc(*size_p + sizeof(*coder), allocator);
+
+    if (buf_p == NULL) {
+	return LZMA_MEM_ERROR;
+    }
+
+    memcpy(buf_p, *buf_pp, *size_p);
+    lzma_free(*buf_pp, allocator);
+    memcpy(&((char *)buf_p)[*size_p], coder, sizeof(*coder));
+    *buf_pp = buf_p;
+    *size_p += sizeof(*coder);
+
+    dbg(*size_p);
+
+    return LZMA_OK;
+}
+
+static lzma_ret
+lz_decoder_restore(void *coder_ptr, void *buf_p, size_t size,
+		   const lzma_allocator *allocator)
+{
+    (void)coder_ptr;
+    (void)buf_p;
+    (void)size;
+    (void)allocator;
+
+    dbg("");
+
+    return (LZMA_OK);
+}
+
 
 static void
 lz_decoder_end(void *coder_ptr, const lzma_allocator *allocator)
@@ -225,6 +263,8 @@ lzma_lz_decoder_init(lzma_next_coder *next, const lzma_allocator *allocator,
 		next->coder = coder;
 		next->code = &lz_decode;
 		next->end = &lz_decoder_end;
+		next->dump = &lz_decoder_dump;
+		next->restore = &lz_decoder_restore;
 
 		coder->dict.buf = NULL;
 		coder->dict.size = 0;
